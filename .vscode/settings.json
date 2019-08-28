@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "cctype": "cpp",
+        "cmath": "cpp",
+        "cstdint": "cpp",
+        "cstdio": "cpp",
+        "cstdlib": "cpp",
+        "limits": "cpp",
+        "*.tcc": "cpp",
+        "type_traits": "cpp",
+        "typeinfo": "cpp",
+        "sched.h": "c",
+        "headers.h": "c",
+        "ns_in_opt_header.h": "c",
+        "capability.h": "c",
+        "mount.h": "c",
+        "wait.h": "c"
+    }
+}
