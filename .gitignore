@@ -3,3 +3,4 @@
 *.obj
 *.o
 .vscode/
+test_main.cpp
