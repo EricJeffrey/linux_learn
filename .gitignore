@@ -2,5 +2,5 @@
 *.out
 *.obj
 *.o
-test_main.cpp
 .vscode/
+test_main.cpp
