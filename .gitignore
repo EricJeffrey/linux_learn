@@ -1,0 +1,5 @@
+*.sh
+*.out
+*.obj
+*.o
+.vscode/
