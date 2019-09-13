@@ -2,5 +2,7 @@
 *.out
 *.obj
 *.o
+*.log
 .vscode/
+untracked/
 test_main.cpp
