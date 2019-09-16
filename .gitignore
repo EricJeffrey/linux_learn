@@ -5,4 +5,5 @@
 *.log
 .vscode/
 untracked/
+simp_container_root/
 test_main.cpp
