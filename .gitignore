@@ -6,4 +6,5 @@
 .vscode/
 untracked/
 simp_container_root/
+simple_container/build/
 test_main.cpp
