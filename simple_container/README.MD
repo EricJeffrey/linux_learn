@@ -1,16 +1,16 @@
 # 超简易容器
 
-**注**：simp_container项目已迁移至[]()，这里的代码不会再继续更新。
+**注**：simp_container项目已迁移至[SimpleContainer](https://github.com/EricJeffrey/SimpleContainer)，这里的代码不会再继续更新。
 
 参考[busybox简单容器](https://segmentfault.com/a/1190000006913509)，在新的Namespace中运行busybox。
 
 ## 容器创建步骤
 1. 创建根目录、bin目录等
-   1. 创建`/`, `/bin`目录
+   - 创建`/`, `/bin`目录
 2. 配置根文件系统目录/root
-   1. `/root`, `/old_root`
+   - `/root`, `/old_root`
 3. 挂载文件系统procfs等
-   1. `/proc`, `mount`, `pivot_root`, `chroot`
+   - `/proc`, `mount`, `pivot_root`, `chroot`
 4. 配置用户/组ID映射
 5. 配置网络连接bridge + NAT
 6. 从配置文件创建容器
