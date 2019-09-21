@@ -1,19 +1,4 @@
-#include "wrappers.h"
-#include <dirent.h>
-#include <fcntl.h>
-#include <sched.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mount.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <syscall.h>
-#include <unistd.h>
-#include <wordexp.h>
+#include "main_child.h"
 
 const int STACK_SIZE = 1024 * 1024;
 char child_stack[STACK_SIZE];
@@ -59,82 +44,11 @@ void prepare_dirs() {
     MD("./new_root/old_root");
 }
 
-// execute busybox inside container
-void exec_cmd() {
-    LOGGER_DEBUG_SIMP("EXEC CMD");
-
-    int ret = Fork();
-    if (ret > 0) { // parent
-        Waitpid(ret, NULL, 0);
-        Execl("/bin/sh", "sh", NULL);
-    }
-    if (ret == 0) // child
-        Execl("/bin/busybox", "busybox", "--install", "/bin/", NULL);
-}
-
-// new namespace init
-int new_ns_init(void *arg) {
-    LOGGER_DEBUG_SIMP("NAMESPACE INIT");
-
-    // sync with map_user_grp
-    int *pipe_fd = (int *)arg;
-    Close(pipe_fd[1]);
-    char ch;
-    // block untile fd[1] is closed
-    Read(pipe_fd[0], &ch, 1);
-    LOGGER_DEBUG_SIMP("PIPE CLOSED");
-
-    const char hostname[] = "container01";
-    Sethostname(hostname, strlen(hostname));
-
-    Mount("./new_root", "./new_root", NULL, MS_BIND, NULL);
-    Chdir("./new_root");
-
-    Syscall(SYS_pivot_root, "./", "./old_root");
-
-    Mount("none", "/proc", "proc", 0, NULL);
-    // Umount("/old_root");
-
-    exec_cmd();
-}
-
-// update uid/gid map file
-void update_map(const char *map_file_path, char const *content) {
-    LOGGER_DEBUG_SIMP("UPDATE MAP");
-
-    int fd_uid = Open(map_file_path, O_RDWR);
-    int len = strlen(content);
-    int ret = Write(fd_uid, content, len);
-    Close(fd_uid);
-}
-
-// map uid and gid, 0 1000 10
-void map_ugid(pid_t child_pid) {
-    LOGGER_DEBUG_SIMP("MAP UID GID");
-
-    const int buf_size = 30;
-    char buf[] = "0 1000 1";
-    char id_path[buf_size] = {};
-
-    snprintf(id_path, buf_size, "/proc/%ld/uid_map", (long)child_pid);
-    update_map(id_path, "0 1000 1");
-
-    // write deny to /proc/$$/setgroups
-    char setgrp_path[buf_size] = {};
-    snprintf(setgrp_path, buf_size, "/proc/%ld/setgroups", (long)child_pid);
-    update_map(setgrp_path, "deny");
-
-    memset(id_path, 0, strlen(id_path));
-    snprintf(id_path, buf_size, "/proc/%ld/gid_map", (long)child_pid);
-    update_map(id_path, buf);
-}
-
 // make root dir and move program to root/bin
 void create_container() {
     LOGGER_DEBUG_SIMP("CREATE CONTAINER");
 
     prepare_dirs();
-
     CopyFile("/home/eric/coding/busybox", "./new_root/bin/busybox");
 
     int pipe_fd[2];
@@ -155,12 +69,14 @@ void create_container() {
     child_pid = Clone(new_ns_init, child_stack + STACK_SIZE, ns_flag, pipe_fd);
 
     map_ugid(child_pid);
+    config_net_p(child_pid);
     Close(pipe_fd[1]);
 
     LOGGER_DEBUG_FORMAT("CLONE OVER, PARENT -- MY_PID: %ld", long(getpid()));
     LOGGER_DEBUG_FORMAT("CLONE OVER, PARENT -- CHILD_PID: %ld", long(child_pid));
     Waitpid(child_pid, NULL, 0);
-    LOGGER_DEBUG_SIMP("SHOULD NOT COME HERE BEFORE END");
+
+    LOGGER_DEBUG_SIMP("I APPEAR RIGHT BEFORE EXITING");
     kill(0, SIGKILL);
     exit(0);
 }

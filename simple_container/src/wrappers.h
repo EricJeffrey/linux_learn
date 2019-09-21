@@ -1,6 +1,6 @@
 /**
- * 包装函数，提供错误处理
- * 命名方式：大驼峰
+ * Wrappers, handler error
+ * Naming: Big Camel
  */
 #if !defined(WRAPPERS)
 #define WRAPPERS
@@ -15,6 +15,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <syscall.h>
 #include <unistd.h>
 #include <wait.h>
 

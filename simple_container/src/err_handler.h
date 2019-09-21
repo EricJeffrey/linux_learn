@@ -1,3 +1,7 @@
+/**
+ * Error Handler
+*/
+
 #if !defined(ERRH)
 #define ERRH
 

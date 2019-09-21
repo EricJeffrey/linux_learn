@@ -1,5 +1,7 @@
 # 超简易容器
 
+**注**：simp_container项目已迁移至[]()，这里的代码不会再继续更新。
+
 参考[busybox简单容器](https://segmentfault.com/a/1190000006913509)，在新的Namespace中运行busybox。
 
 ## 容器创建步骤
@@ -9,21 +11,22 @@
    1. `/root`, `/old_root`
 3. 挂载文件系统procfs等
    1. `/proc`, `mount`, `pivot_root`, `chroot`
-4. 配置网络连接bridge + NAT
-5. 配置用户/组ID映射
+4. 配置用户/组ID映射
+5. 配置网络连接bridge + NAT
 6. 从配置文件创建容器
 
 ## TODO - 待办
-1. 重构
-   1. 添加包装函数处理错误
-   2. 错误处理分级
+1. Namespace中不是root用户，无用户配置信息
+2. 重构
+   1. 添加包装函数处理错误 √
+   2. 添加调试、verbose等信息 √
+   3. 错误处理分级
       1. 严重错误 - 退出
       2. 不严重错误 - 日志
-   3. 添加调试、verbose等信息
-2. Alpine根文件系统
-3. 配置网络连接
-4. 添加`LOG/DEBUG`选项机制
-5. 添加包装函数
+3. Alpine根文件系统
+4. 配置网络连接
+5. 添加`LOG/DEBUG`选项机制
+6. 添加包装函数
 
 ## 已解决问题
 1. ~~`clone` 之后ssh连接失效/用户登出问题~~ : 需要在终止时`kill`掉子进程，即`SIGCHLD`或`kill(0, SIGKILL)`

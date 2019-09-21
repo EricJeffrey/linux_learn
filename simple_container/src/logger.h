@@ -1,6 +1,6 @@
 /**
- * Logger日志工具
- * 命名方式：全大写 + 下划线
+ * Logger Util
+ * Name：ALL CAP + UNDERLINE
  * By EricJeffrey
 */
 
