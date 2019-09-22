@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
         proc_setgroups_write(child_pid, "deny");
         snprintf(map_path, PATH_MAX, "/proc/%ld/gid_map", (long)child_pid);
         if (map_zero) {
-            snprintf(map_buf, MAP_BUF_SIZE, "0 %ld 1", (long)getpid());
+            snprintf(map_buf, MAP_BUF_SIZE, "0 %ld 1", (long)getgid());
             gid_map = map_buf;
         }
         update_map(gid_map, map_path);
