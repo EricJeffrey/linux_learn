@@ -3,6 +3,9 @@
 *.obj
 *.o
 *.log
+foo.txt
+bar.txt
+
 .vscode/
 untracked/
 simp_container_root/
