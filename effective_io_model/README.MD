@@ -33,7 +33,7 @@ ret = poll(fds, nfds, timeout);
 // 事件的值有 POLLIN POLLOUT POLLHUP 等，参考poll(2)
 ```
 
-![套接字上的poll的事件指示符](./select()%20and%20poll()%20indications%20for%20sockets.jpg)
+![套接字上的poll的事件指示符](./select_and_poll_indications_for_sockets.jpg)
 
 ## TCP服务器响应流程
 
@@ -235,3 +235,198 @@ void workPollTest() {
 
 ```
 
+# IO模型 - Epoll
+
+简单介绍`epoll`在网络套接字上的使用。
+
+首先是epoll的使用，主要步骤
+1. 创建epoll实例 - `epoll_create1(0)`
+2. 调用`epoll_ctl`添加、修改或者删除监听套接字。需要使用 `epoll_event`对象
+    ```cpp
+    struct epoll_event tmpEvent;
+    tmpEvent.events = EPOLLIN, tmpEvent.data.fd = fd;
+    ```
+3. 使用`epoll_wait`监听
+
+那么如果要使用epoll监听TCP连接，可以按照如下步骤：
+
+1. `socket() + bind() + setsockopt() + listen()`得到套接字sd
+2. 使用`epoll_create`创建epoll实例，得到`epFd`
+3. 设置`tempEvent === {data.fd = fd, events = EPOLLIN}`，使用`epoll_ctl(epFd, EPOLL_CTL_ADD, sd, &tempEvent)`将sd假如到监听队列中
+4. 创建一个`epoll_event`数组eventList，调用`epoll_wait`监听队列，根据返回值ret
+    1. -1：出错
+    2.  0：无事发生
+    3.  \>0：则`eventList`前ret个对象为事件以及对应的描述符
+    4. 对于 sd 上的EPOLLIN，表示可以accept
+        1. `accept`得到childSd，设置其为非阻塞`O_NONBLOCK`
+        2. 使用`epoll_ctl(epFd, EPOLL_CTL_ADD, childSd, tempEvent)`加入到epoll中，事件为`EPOLLIN`
+        3. 之所以不监听`EPOLLOUT`是因为套接字的写操作总是可行，故会一直触发事件。应当在读取到请求后才触发可写的监听
+    6. 对于其他 sd
+        1. 首先判断是否 `(EPOLLHUP | EPOLLRDHUP)`，表示出错
+        2. 否则，若`EPOLLIN`，则读取数据
+            - 若读取到`EOF`（返回值为0），则表示连接已断开
+            - `EWOULDBLOCK or EAGAIN`，表示没有数据可读，设置套接字的`EPOLLOUT`事件监听
+        3. 否则，若`EPOLLOUT`，则写入数据，并取消套接字的`EPOLLOUT`事件监听
+
+上述读写以及epoll_wait都有可能呗信号打断，需要处理一下。
+
+代码实例:
+```cpp
+#if !defined(EPOLL_TEST_H)
+#define EPOLL_TEST_H
+
+#include <fcntl.h>
+#include <sys/epoll.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+// extern int epoll_ctl (int __epfd, int __op, int __fd, struct epoll_event *__event) __THROW;
+
+const char resp[] = "HTTP/1.1 200\r\n\
+Content-Type: application/json\r\n\
+Content-Length: 13\r\n\
+Date: Thu, 13 Aug 2020 08:02:00 GMT\r\n\
+Keep-Alive: timeout=60\r\n\
+Connection: keep-alive\r\n\r\n\
+[HELLO WORLD]\r\n\r\n";
+void errExit() {
+    fprintf(stderr, "ERROR! errno: %s\n", strerror(errno));
+    exit(1);
+}
+
+static epoll_event tempEvent;
+
+void setTempEvent(int fd, int events) {
+    memset(&tempEvent, 0, sizeof(tempEvent));
+    tempEvent.data.fd = fd, tempEvent.events = events;
+}
+
+void workEpollTest() {
+    // freopen("./foo.txt", "wt", stderr);
+    const int port = 2333;
+    int sd, ret;
+    sd = socket(AF_INET, SOCK_STREAM, 0);
+    fprintf(stderr, "created socket\n");
+    if (sd == -1)
+        errExit();
+    int opt = 1;
+    if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1)
+        errExit();
+    fprintf(stderr, "socket reuse set\n");
+    sockaddr_in addr;
+    addr.sin_family = AF_INET, addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+    if (bind(sd, (sockaddr *)&addr, sizeof(addr)) == -1)
+        errExit();
+    fprintf(stderr, "socket binded\n");
+    if (listen(sd, 1024) == -1)
+        errExit();
+    fprintf(stderr, "socket listen start\n");
+
+    // ----------------------------------------------- epoll创建实例
+    int epFd = epoll_create1(0);
+    if (epFd == -1)
+        errExit();
+    fprintf(stderr, "epoll instance created\n");
+    setTempEvent(sd, EPOLLIN);
+    ret = epoll_ctl(epFd, EPOLL_CTL_ADD, sd, &tempEvent);
+    if (ret == -1)
+        errExit();
+    fprintf(stderr, "listen socket add to epoll\n");
+    // ----------------------------------------------- 开始接收连接
+    epoll_event *eventList = new epoll_event[100];
+    while (true) {
+        ret = epoll_wait(epFd, eventList, 100, -1);
+        fprintf(stderr, "epoll returned with value: %d\n", ret);
+        if (ret == -1) {
+            if (errno == EINTR)
+                fprintf(stderr, "epoll interrupted by signal, ignoring\n");
+            else
+                errExit();
+        } else if (ret == 0) {
+            fprintf(stderr, "no events on socket\n");
+        } else {
+            // ----------------------------------------------- 检查有事件的描述符
+            fprintf(stderr, "checking fds\n");
+            for (int i = 0; i < ret; i++) {
+                if (eventList[i].data.fd == sd) {
+                    if (eventList[i].events & EPOLLIN) {
+                        sockaddr_in addr;
+                        socklen_t addrLen;
+                        int childSd = accept(sd, (sockaddr *)&addr, &addrLen);
+                        fprintf(stderr, "client connection got, childSd: %d\n", childSd);
+                        if (childSd == -1)
+                            errExit();
+                        ret = fcntl(childSd, F_SETFL, O_NONBLOCK);
+                        if (ret == -1)
+                            errExit();
+                        fprintf(stderr, "child sd set to NON BLOCK\n");
+                        setTempEvent(childSd, EPOLLIN);
+                        ret = epoll_ctl(epFd, EPOLL_CTL_ADD, childSd, &tempEvent);
+                        if (ret == -1)
+                            errExit();
+                        fprintf(stderr, "childSd add to epoll list\n");
+                    } else {
+                        fprintf(stderr, "Unknown events on sd!\n");
+                        close(epFd);
+                        errExit();
+                    }
+                } else {
+                    if (eventList[i].events & (EPOLLHUP | EPOLLRDHUP | EPOLLERR)) {
+                        // close
+                        fprintf(stderr, "events hup on sd, closing\n");
+                        close(eventList[i].data.fd);
+                        epoll_ctl(epFd, EPOLL_CTL_DEL, eventList[i].data.fd, nullptr);
+                    } else if (eventList[i].events & EPOLLIN) {
+                        char buffer[1024] = {};
+                        while (1) {
+                            ret = read(eventList[i].data.fd, buffer, 1024);
+                            fprintf(stderr, "read on: %d returned with value: %d\n",
+                                    eventList[i].data.fd, ret);
+                            if (ret == 0) {
+                                fprintf(stderr, "read return EOF, connection closed\n");
+                                close(eventList[i].data.fd);
+                                epoll_ctl(epFd, EPOLL_CTL_DEL, eventList[i].data.fd, nullptr);
+                                break;
+                            }
+                            if (ret == -1) {
+                                const int tmpErrno = errno;
+                                if (tmpErrno == EWOULDBLOCK || tmpErrno == EAGAIN) {
+                                    fprintf(stderr, "read would block, stop reading\n");
+                                    // read is over
+                                    // http pipe line? need to put resp into a queue
+                                    setTempEvent(eventList[i].data.fd,
+                                                 EPOLLIN | EPOLLOUT | EPOLLHUP);
+                                    epoll_ctl(epFd, EPOLL_CTL_MOD, eventList[i].data.fd,
+                                              &tempEvent);
+                                    break;
+                                } else {
+                                    errExit();
+                                }
+                            }
+                        }
+                    } else if (eventList[i].events & EPOLLOUT) {
+                        ret = write(eventList[i].data.fd, resp, sizeof(resp));
+                        fprintf(stderr, "write on: %d returned with value: %d\n", i, ret);
+                        if (ret == -1)
+                            // may be interrupted by signal
+                            errExit();
+                        setTempEvent(eventList[i].data.fd, EPOLLIN);
+                        epoll_ctl(epFd, EPOLL_CTL_MOD, eventList[i].data.fd, &tempEvent);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#endif // EPOLL_TEST_H
+
+```

@@ -1,5 +1,6 @@
 #if !defined(POLL_TEST_H)
 #define POLL_TEST_H
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -28,18 +29,6 @@ accept - POLLIN
         2. 没有待写则，只允许读 - POLLIN
 
 */
-
-class PollHelper {
-private:
-    vector<pollfd> fds;
-
-public:
-    PollHelper() {}
-    ~PollHelper() {}
-
-    int doPoll();
-    int regCallback(int start, int len = 1);
-};
 
 void errExit() {
     fprintf(stderr, "ERROR! error %s\n", strerror(errno));
