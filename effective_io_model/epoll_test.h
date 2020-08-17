@@ -90,10 +90,10 @@ void workEpollTest() {
                         fprintf(stderr, "client connection got, childSd: %d\n", childSd);
                         if (childSd == -1)
                             errExit();
-                        ret = fcntl(childSd, F_SETFL, O_NONBLOCK);
-                        if (ret == -1)
-                            errExit();
-                        fprintf(stderr, "child sd set to NON BLOCK\n");
+                        // ret = fcntl(childSd, F_SETFL, O_NONBLOCK);
+                        // if (ret == -1)
+                        //     errExit();
+                        // fprintf(stderr, "child sd set to NON BLOCK\n");
                         setTempEvent(childSd, EPOLLIN);
                         ret = epoll_ctl(epFd, EPOLL_CTL_ADD, childSd, &tempEvent);
                         if (ret == -1)
@@ -111,9 +111,11 @@ void workEpollTest() {
                         close(eventList[i].data.fd);
                         epoll_ctl(epFd, EPOLL_CTL_DEL, eventList[i].data.fd, nullptr);
                     } else if (eventList[i].events & EPOLLIN) {
-                        char buffer[1024] = {};
+                        const static int buf_sz = 505;
+                        char buffer[buf_sz] = {};
                         while (1) {
-                            ret = read(eventList[i].data.fd, buffer, 1024);
+                            ret = read(eventList[i].data.fd, buffer, buf_sz);
+                            // 阻塞模式下每一次read读取定长数据
                             fprintf(stderr, "read on: %d returned with value: %d\n",
                                     eventList[i].data.fd, ret);
                             if (ret == 0) {
@@ -137,6 +139,7 @@ void workEpollTest() {
                                     errExit();
                                 }
                             }
+                            break;
                         }
                     } else if (eventList[i].events & EPOLLOUT) {
                         ret = write(eventList[i].data.fd, resp, sizeof(resp));
