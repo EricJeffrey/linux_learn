@@ -81,7 +81,8 @@ void workEpollTest() {
         } else {
             // ----------------------------------------------- 检查有事件的描述符
             fprintf(stderr, "checking fds\n");
-            for (int i = 0; i < ret; i++) {
+            const int fdCount = ret;
+            for (int i = 0; i < fdCount; i++) {
                 if (eventList[i].data.fd == sd) {
                     if (eventList[i].events & EPOLLIN) {
                         sockaddr_in addr;
@@ -94,7 +95,7 @@ void workEpollTest() {
                         // if (ret == -1)
                         //     errExit();
                         // fprintf(stderr, "child sd set to NON BLOCK\n");
-                        setTempEvent(childSd, EPOLLIN);
+                        setTempEvent(childSd, EPOLLIN | EPOLLRDHUP);
                         ret = epoll_ctl(epFd, EPOLL_CTL_ADD, childSd, &tempEvent);
                         if (ret == -1)
                             errExit();
@@ -118,10 +119,16 @@ void workEpollTest() {
                             // 阻塞模式下每一次read读取定长数据
                             fprintf(stderr, "read on: %d returned with value: %d\n",
                                     eventList[i].data.fd, ret);
+                            // 只在 阻塞 时起作用
+                            if (ret > 0) {
+                                // EPOLLRDHUP需要显式指出
+                                setTempEvent(eventList[i].data.fd, EPOLLIN | EPOLLOUT | EPOLLRDHUP);
+                                epoll_ctl(epFd, EPOLL_CTL_MOD, eventList[i].data.fd, &tempEvent);
+                            }
                             if (ret == 0) {
                                 fprintf(stderr, "read return EOF, connection closed\n");
-                                close(eventList[i].data.fd);
-                                epoll_ctl(epFd, EPOLL_CTL_DEL, eventList[i].data.fd, nullptr);
+                                // close(eventList[i].data.fd);
+                                // epoll_ctl(epFd, EPOLL_CTL_DEL, eventList[i].data.fd, nullptr);
                                 break;
                             }
                             if (ret == -1) {
@@ -131,7 +138,7 @@ void workEpollTest() {
                                     // read is over
                                     // http pipe line? need to put resp into a queue
                                     setTempEvent(eventList[i].data.fd,
-                                                 EPOLLIN | EPOLLOUT | EPOLLHUP);
+                                                 EPOLLIN | EPOLLOUT | EPOLLRDHUP);
                                     epoll_ctl(epFd, EPOLL_CTL_MOD, eventList[i].data.fd,
                                               &tempEvent);
                                     break;
@@ -147,7 +154,7 @@ void workEpollTest() {
                         if (ret == -1)
                             // may be interrupted by signal
                             errExit();
-                        setTempEvent(eventList[i].data.fd, EPOLLIN);
+                        setTempEvent(eventList[i].data.fd, EPOLLIN | EPOLLRDHUP);
                         epoll_ctl(epFd, EPOLL_CTL_MOD, eventList[i].data.fd, &tempEvent);
                     }
                 }
