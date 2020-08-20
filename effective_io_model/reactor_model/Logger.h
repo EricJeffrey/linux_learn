@@ -16,6 +16,7 @@
 
 using std::endl;
 using std::initializer_list;
+using std::lock_guard;
 using std::mutex;
 using std::ofstream;
 using std::ostream;
@@ -23,7 +24,6 @@ using std::string;
 using std::thread;
 using std::to_string;
 using std::unique_ptr;
-
 
 class Logger {
 
@@ -38,8 +38,9 @@ private:
     // log into [filePath] with append
     Logger(const string &filePath) : out(new ofstream(filePath, std::ios::app)) {}
     ~Logger() {}
-    void logOutCurTime() { (*out) << curTime(); }
+    // sync output
     void logOut(initializer_list<string> sli, const string &tag) {
+        lock_guard<mutex> lock(loggerMutex);
         (*out) << curTime() << " " << tag << " ";
         for (auto &&s : sli)
             (*out) << s << " ";
@@ -54,7 +55,6 @@ public:
     static Logger *getInstance();
 
     void setDebugOn(bool dbgOn = false) { debugOn = dbgOn; }
-    // todo need to sync output
     void debug(initializer_list<string> strList) {
         if (debugOn)
             logOut(strList, "DEBUG");
