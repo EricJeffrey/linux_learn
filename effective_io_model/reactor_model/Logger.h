@@ -25,8 +25,11 @@ using std::thread;
 using std::to_string;
 using std::unique_ptr;
 
-class Logger {
+class Logger;
+string curTime();
+Logger *loggerInstance();
 
+class Logger {
 private:
     static Logger *loggerPtr;
     static mutex loggerMutex;
@@ -44,6 +47,7 @@ private:
         (*out) << curTime() << " " << tag << " ";
         for (auto &&s : sli)
             (*out) << s << " ";
+        (*out) << endl;
     }
 
 public:
@@ -54,7 +58,7 @@ public:
     static Logger *init(const string &fpath);
     static Logger *getInstance();
 
-    void setDebugOn(bool dbgOn = false) { debugOn = dbgOn; }
+    void setDebug(bool dbgOn = false) { debugOn = dbgOn; }
     void debug(initializer_list<string> strList) {
         if (debugOn)
             logOut(strList, "DEBUG");
@@ -70,7 +74,4 @@ public:
         logOut({s, "errno:", to_string(tmpErrno), strerror(tmpErrno)}, "SYS-ERROR");
     };
 };
-
-string curTime();
-Logger *loggerInstance();
 #endif // LOGGER_H

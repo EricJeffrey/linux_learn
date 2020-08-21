@@ -15,17 +15,20 @@ private:
 public:
     EpollEventHandler() {}
     ~EpollEventHandler() {}
+    // Call poller-> wait and handle returned event
+    // Throw on Error
     virtual int handleEvent(int fd, int events, PtrPoller poller) {}
 };
 
-class DefaultServerEvHandler : EpollEventHandler {
+class DefaultEventHandler : public EpollEventHandler {
 private:
     int listenSd;
 
 public:
-    DefaultServerEvHandler(int listenSd) : listenSd(listenSd) {}
-    ~DefaultServerEvHandler() {}
+    DefaultEventHandler(int listenSd) : listenSd(listenSd) {}
+    ~DefaultEventHandler() {}
 
+    // todo handle event in thread pool
     int handleEvent(int fd, int events, PtrPoller poller) override {
         if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
             loggerInstance()->error(

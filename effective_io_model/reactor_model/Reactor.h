@@ -28,26 +28,24 @@ public:
     }
     ~Reactor() {}
 
-    // Create a traditional server socket listen on 0.0.0.0:port
+    // Create a traditional server socket listen on host:port
     // Call setsockopt(...SO_REUSEADDR) if setSockReuse is true
     // Throw on Error
-    static int createServerSocket(int port, const string &host, bool setSockReuse = true) {
+    static int createServerSocket(int port, const string &host) {
         int sd, ret;
         sd = socket(AF_INET, SOCK_STREAM, 0);
         if (sd == -1) {
             loggerInstance()->sysError(errno, "call to socket failed");
             throw runtime_error("call to socket failed");
         }
-        if (setSockReuse) {
-            int opt = 1;
-            if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1) {
-                loggerInstance()->sysError(errno, "setsockopt failed");
-                throw runtime_error("call to setsockopt failed");
-            }
+        int opt = 1;
+        if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int)) == -1) {
+            loggerInstance()->sysError(errno, "setsockopt failed");
+            throw runtime_error("call to setsockopt failed");
         }
         sockaddr_in addr;
         addr.sin_family = AF_INET, addr.sin_port = htons(port);
-        addr.sin_addr.s_addr = INADDR_ANY;
+        inet_aton(host.c_str(), &addr.sin_addr);
         if (bind(sd, (sockaddr *)&addr, sizeof(addr)) == -1) {
             loggerInstance()->sysError(errno, "bind failed");
             throw runtime_error("call to bind failed");
@@ -61,15 +59,21 @@ public:
 
     // Call epoll_wait to listen event
     // Throw on error
-    void startEventListener() {
+    void start() {
         while (true) {
             EvListPairIntRet ret = pollerPtr->epollWait();
             if (ret.second == -1) {
                 pollerPtr->closePoller();
                 throw runtime_error("call to epollWait failed");
             } else {
-                for (auto &&ev : ret.first)
-                    handlerPtr->handleEvent(ev.data.fd, ev.events, pollerPtr);
+                for (auto &&ev : ret.first) {
+                    try {
+                        handlerPtr->handleEvent(ev.data.fd, ev.events, pollerPtr);
+                    } catch (const std::exception &e) {
+                        loggerInstance()->error("handle event failed");
+                        throw;
+                    }
+                }
             }
         }
     }

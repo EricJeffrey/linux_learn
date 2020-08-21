@@ -3,8 +3,8 @@
 *.obj
 *.o
 *.log
-foo.txt
-bar.txt
+foo.*
+bar.*
 
 .vscode/
 untracked/

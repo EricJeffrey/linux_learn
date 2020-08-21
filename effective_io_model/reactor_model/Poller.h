@@ -77,7 +77,8 @@ public:
         return ret;
     }
 
-    // return a shared_ptr point to returned events, return nullptr on error
+    // Return a pair contain events and int value
+    // Return <{}, -1> on error
     EvListPairIntRet epollWait(int timeOutMs = -1) noexcept {
         using std::make_pair;
         const int EVENT_SIZE = connSockCount + 1;
@@ -98,7 +99,7 @@ public:
         return 0;
     }
 
-    // sd should not be listenSd, -1 on error
+    // sd should not be listen socket, -1 on error
     int epollDelete(int sd) noexcept {
         epoll_event tmpEvent = tempEpollEvent(sd);
         int ret = epoll_ctl(epFd, EPOLL_CTL_DEL, sd, &tmpEvent);
