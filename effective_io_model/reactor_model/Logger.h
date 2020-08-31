@@ -39,7 +39,7 @@ private:
     // log into ostream, default [stderr]
     Logger(ostream &o = std::cerr) : out(&o) {}
     // log into [filePath] with append
-    Logger(const string &filePath) : out(new ofstream(filePath, std::ios::app)) {}
+    Logger(const string &filePath) : out(new ofstream(filePath, std::ios::out)) {}
     ~Logger() {}
     // sync output
     void logOut(initializer_list<string> sli, const string &tag) {

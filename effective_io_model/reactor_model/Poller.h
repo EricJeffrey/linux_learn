@@ -20,18 +20,8 @@ using std::vector;
 
 class Poller;
 
-typedef pair<vector<epoll_event>, int> EvListPairIntRet;
+typedef pair<vector<epoll_event>, int> EpollEvs2IntRet;
 typedef shared_ptr<Poller> PtrPoller;
-
-/*
-class handler {
-    int handleEvent();
-
-    int handleReadEvent();
-    int handleWriteEvent();
-    ...
-}
- */
 
 class Poller {
 private:
@@ -48,14 +38,14 @@ private:
 public:
     // init poller using epoll_create
     Poller() {
+        connSockCount = 0;
         epFd = epoll_create1(0);
         if (epFd == -1)
             throw runtime_error("call to epoll_create1 failed");
     }
     // init epoll with listenSd as listening sockt
     // return created epFd, throw exception on error
-    Poller(int listenSd) {
-        Poller();
+    Poller(int listenSd) : Poller() {
         this->listenSd = listenSd;
         int ret = epollAdd(listenSd, EPOLLIN | EPOLLRDHUP | EPOLLHUP, false);
         if (ret == -1) {
@@ -78,14 +68,20 @@ public:
     }
 
     // Return a pair contain events and int value
-    // Return <{}, -1> on error
-    EvListPairIntRet epollWait(int timeOutMs = -1) noexcept {
+    // Return <{}, -2> on Interrupted, <{}, -1> on error
+    EpollEvs2IntRet epollWait(int timeOutMs = -1) noexcept {
         using std::make_pair;
         const int EVENT_SIZE = connSockCount + 1;
         vector<epoll_event> eventList(EVENT_SIZE);
         int ret = epoll_wait(epFd, eventList.data(), EVENT_SIZE, timeOutMs);
-        if (ret == -1)
-            loggerInstance()->sysError(errno, "call to epoll_wait failed");
+        if (ret == -1) {
+            const int tmpErrno = errno;
+            if (tmpErrno == EINTR) {
+                loggerInstance()->sysError(tmpErrno, "call to epoll_wait interrupted by signal");
+                return make_pair(eventList, -2);
+            }
+            loggerInstance()->sysError(tmpErrno, "call to epoll_wait failed");
+        }
         return make_pair(eventList, ret);
     }
 
