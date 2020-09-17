@@ -6,6 +6,8 @@
 foo.*
 bar.*
 
+build/
+
 .vscode/
 untracked/
 simp_container_root/
